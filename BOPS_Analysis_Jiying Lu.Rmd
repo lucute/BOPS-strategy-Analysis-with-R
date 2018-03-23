@@ -1,0 +1,179 @@
+---
+title: "BOPS_Analysis"
+author: "Jiying Lu"
+date: "3/22/2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+#Set up environment
+```{r}
+rm(list = ls())
+setwd("/Users/lucute/Desktop/Side Project/BOPS_R")
+ca <- read.csv(file.choose())
+b12 <- read.csv(file.choose())
+b12$X <- NULL
+b13 <- read.csv(file.choose())
+b13$X <- NULL
+
+library(stringr)
+library(data.table)
+library(MASS)
+library(foreign)
+library(gplots)
+library(lmtest)
+library(usdm)
+library(sandwich)
+library(plyr)
+```
+
+#Generate bops12 and bops13 column to indicate whether this transaction happen after adopting bops or not
+```{r}
+ca$year_month <- paste(ca$year, ca$month, sep = "")
+?substr
+ca$date <- substr(ca$purchase_date, 1,9)
+
+ca$bops12 <- ifelse((ca$year == 2011 & ca$month %in% c("AUG","SEP","OCT","NOV","DEC") & ca$store_number %in% c(2,6)) | (ca$bops12 == 0 & ca$year %in% c(2012,2013) & ca$store_number %in% c(2,6)),1,0)
+?ifelse
+
+ca$bops13 <- ifelse(ca$bops12 == 1 | (ca$year == 2012 & ca$month %in% c("OCT", "NOV", "DEC") & ca$store_number == 5998) | (ca$year == 2013 & ca$store_number == 5998) | (ca$year == 2012 & ca$date %in% c("27SEP2012", "28SEP2012", "29SEP2012", "30SEP2012" )),1,0)
+
+ca$bops <- ifelse((ca$bops12 == 1) | (ca$bops13 == 1),1,0)
+
+```
+
+Generate dummy variables for whether using bops or not
+```{r}
+ca$usebops12 <- ifelse(ca$transaction_id %in% b12$transaction_id,1,0)
+ca$usebops13 <- ifelse(ca$transaction_id %in% b13$transaction_id,1,0)
+
+```
+
+#Q1: What is the impact of adopting BOPS strategy on online channel sales/returns?
+Analysis strategy:
+By store -> compare the impact on sales for each store
+
+subset the data
+```{r}
+cas2 <- ca[ca$store_number == 2,]
+cas6 <- ca[ca$store_number == 6,]
+cas5998 <- ca[ca$store_number == 5998,]
+```
+
+cas2
+check data
+```{r}
+dim(cas2)
+str(cas2)
+count(cas2, var = "bops")
+count(cas2, var = "gender")
+count(cas2, var = "ethnic_code")
+count(cas2, var = "homeowner_code")
+
+hist(cas2$net_purchase_amount)
+hist(log(cas2$net_purchase_amount +1))
+cas2$logamount <- log(cas2$net_purchase_amount +1)
+
+hist(cas2$age_band)
+hist(cas2$est_income_code)
+hist(cas2$length_of_residence)
+
+cor <- cbind(cas2[,c(5,12,13,16)])
+cor <- na.omit(cor)
+cor2 <- cor(cor)
+vif(cor)
+
+sum(is.na(cas2))
+colSums(is.na(cas2))
+
+#replace NA with mean for columns age_band, est_income_code, and length_of_residence
+cas2$age_band[is.na(cas2$age_band)] <- mean(cas2$age_band, na.rm = TRUE)
+cas2$est_income_code[is.na(cas2$est_income_code)] <- mean(cas2$est_income_code, na.rm = TRUE)
+cas2$length_of_residence[is.na(cas2$length_of_residence)] <- mean(cas2$length_of_residence, na.rm = TRUE)
+
+unique(cas2$homeowner_code)
+cas2$homeowner_code <- sub("^$", "N", cas2$homeowner_code)
+
+#Same for the gender
+cas2$gender <- sub("^$", "U", cas2$gender)
+unique(cas2$gender)
+
+unique(cas2$child)
+count(cas2$child)
+cas2$child <- sub("^$", "U", cas2$child)
+
+colSums(is.na(cas2))
+
+#drop 4 rows with summary na
+
+cas2 <- cas2[!is.na(cas2$summary),]
+
+
+
+```
+
+Modeling
+```{r}
+cas2_1 <- lm(cas2$logamount ~ factor(cas2$gender) + cas2$age_band + cas2$est_income_code + factor(cas2$ethnic_code) + cas2$length_of_residence + factor(cas2$child) + factor(cas2$homeowner_code) + relevel(cas2$month, ref = "JAN") + cas2$bops)
+summary(cas2_1)
+AIC(cas2_1) #4816761
+dwtest(cas2_1) #With p-value greater than 0.05, we have 95% confidence to accept null hypothesis!
+
+#The estimation for homeowner_code R is NA, probable reasons are 1) Collinearity with ohter variables 2) too less observations
+count(cas2, var = "homeowner_code") #Looks like it is not because of too less observations
+# R = total amount - (N+O), since N is not the crucial option among O,R,and N. So I decided to set the reference to O.
+
+cas2_1_2 <- lm(cas2$logamount ~ factor(cas2$gender) + cas2$age_band + cas2$est_income_code + factor(cas2$ethnic_code) + cas2$length_of_residence + factor(cas2$child) + relevel(factor(cas2$homeowner_code), ref = "O" ) + relevel(cas2$month, ref = "JAN") + cas2$bops)
+summary(cas2_1_2)
+
+#Now I have the estimate for R compares to O
+
+
+#Add month index for capturing time trend in this data
+cas2_2 <- lm(cas2$logamount ~ factor(cas2$gender) + cas2$age_band + cas2$est_income_code + factor(cas2$ethnic_code) + cas2$length_of_residence + factor(cas2$child) + relevel(factor(cas2$homeowner_code), ref = "O" ) + relevel(cas2$month, ref = "JAN") + cas2$bops + cas2$month_index)
+summary(cas2_2)
+AIC(cas2_2) #4807411
+dwtest(cas2_2) #1.4821 a liitle closer to 2 than last model
+
+#Add summary variable
+cas2_3 <- lm(cas2$logamount ~ relevel(factor(cas2$gender), ref = "U") + cas2$age_band + cas2$est_income_code + factor(cas2$ethnic_code) + cas2$length_of_residence + relevel(factor(cas2$child), ref = "U") + relevel(factor(cas2$homeowner_code), ref = "O" ) + relevel(cas2$month, ref = "JAN") + cas2$bops + cas2$month_index + factor(cas2$summary))
+summary(cas2_3)
+AIC(cas2_3) #4155421
+dwtest(cas2_3) #1.5818
+
+#Drop ethinic_code
+
+cas2_4 <- lm(cas2$logamount ~ relevel(factor(cas2$gender), ref = "U") + cas2$age_band + cas2$est_income_code + cas2$length_of_residence + relevel(factor(cas2$child), ref = "U") + relevel(factor(cas2$homeowner_code), ref = "O" ) + relevel(cas2$month, ref = "JAN") + cas2$bops + cas2$month_index + factor(cas2$summary))
+summary(cas2_4)
+AIC(cas2_4) #4157670
+dwtest(cas2_4) #1.5798
+
+#For the age band, we have positive sign for estimate, how about quadratic age band?
+plot(cas2$net_purchase_amount ,cas2$age_band)
+
+cas2_5 <- lm(cas2$logamount ~ relevel(factor(cas2$gender), ref = "U") + cas2$age_band + I(cas2$age_band^2) + cas2$est_income_code + cas2$length_of_residence + relevel(factor(cas2$child), ref = "U") + relevel(factor(cas2$homeowner_code), ref = "O" ) + relevel(cas2$month, ref = "JAN") + cas2$bops + cas2$month_index + factor(cas2$summary))
+summary(cas2_5)
+AIC(cas2_5) #4157578
+dwtest(cas2_5) #1.5798
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
