@@ -28,6 +28,13 @@ library(lmtest)
 library(usdm)
 library(sandwich)
 library(plyr)
+library(ggplot2)
+install.packages("effects")
+library(effects)
+install.packages("interplot")
+library(interplot)
+install.packages("jtools")
+library(jtools)
 ```
 
 #Generate bops12 and bops13 column to indicate whether this transaction happen after adopting bops or not
@@ -36,12 +43,16 @@ ca$year_month <- paste(ca$year, ca$month, sep = "")
 ?substr
 ca$date <- substr(ca$purchase_date, 1,9)
 
-ca$bops12 <- ifelse((ca$year == 2011 & ca$month %in% c("AUG","SEP","OCT","NOV","DEC") & ca$store_number %in% c(2,6)) | (ca$bops12 == 0 & ca$year %in% c(2012,2013) & ca$store_number %in% c(2,6)),1,0)
-?ifelse
+ca$bops12 <- ifelse((ca$year == 2011 & ca$month %in% c("AUG","SEP","OCT","NOV","DEC") & ca$store_number %in% c(2,6)) | (ca$year %in% c(2012,2013) & ca$store_number %in% c(2,6)),1,0)
 
 ca$bops13 <- ifelse(ca$bops12 == 1 | (ca$year == 2012 & ca$month %in% c("OCT", "NOV", "DEC") & ca$store_number == 5998) | (ca$year == 2013 & ca$store_number == 5998) | (ca$year == 2012 & ca$date %in% c("27SEP2012", "28SEP2012", "29SEP2012", "30SEP2012" )),1,0)
 
 ca$bops <- ifelse((ca$bops12 == 1) | (ca$bops13 == 1),1,0)
+
+count(ca$bops)
+count(ca$bops12)
+count(ca$bops13)
+count(ca$bops13[ca$store_number == 5998])
 
 ```
 
@@ -49,6 +60,14 @@ Generate dummy variables for whether using bops or not
 ```{r}
 ca$usebops12 <- ifelse(ca$transaction_id %in% b12$transaction_id,1,0)
 ca$usebops13 <- ifelse(ca$transaction_id %in% b13$transaction_id,1,0)
+
+count(ca$usebops12)
+count(ca$usebops13)
+
+#Export to csv:
+write.csv(ca, file = "ca.txt")
+ca <- read.csv(file.choose())
+ca$X <- NULL
 
 ```
 
@@ -158,11 +177,277 @@ cas2_5 <- lm(cas2$logamount ~ relevel(factor(cas2$gender), ref = "U") + cas2$age
 summary(cas2_5)
 AIC(cas2_5) #4157578
 dwtest(cas2_5) #1.5798
+anova(cas2_4, cas2_5, test = "Chisq") #Model fit improves with the quadratic variable
+bptest(cas2_5) 
+
+#BOPS and Summary
+cas2_6 <- lm(cas2$logamount ~ relevel(factor(cas2$gender), ref = "U") + cas2$age_band + I(cas2$age_band^2) + cas2$est_income_code + cas2$length_of_residence + relevel(factor(cas2$child), ref = "U") + relevel(factor(cas2$homeowner_code), ref = "O" ) + relevel(cas2$month, ref = "JAN") + cas2$bops*factor(cas2$summary) + cas2$month_index + factor(cas2$summary))
+summary(cas2_6)
+AIC(cas2_6) #4163559 #Interaction terms doesn't seem to improve the model fit
+dwtest(cas2_6) #1.5798
+
+cas2_7 <- lm(cas2$logamount ~ relevel(factor(cas2$gender), ref = "U") + cas2$age_band + I(cas2$age_band^2) + cas2$est_income_code + cas2$length_of_residence + relevel(factor(cas2$child), ref = "U") + relevel(factor(cas2$homeowner_code), ref = "O" ) + relevel(cas2$month, ref = "JAN") + cas2$bops*cas2$month + cas2$month_index + factor(cas2$summary))
+summary(cas2_7)
+AIC(cas2_7) #4126231
+dwtest(cas2_7) #1.6125
+anova(cas2_5, cas2_7, test = "Chisq") #Model fit improves with the interaction variable
+bptest(cas2_7) #This model is heteroschedasticity
+
 
 ```
 
 
+cas6
+check data
+```{r}
+cas6$X <- NULL
 
+dim(cas6)
+str(cas6)
+count(cas6, var = "bops")
+count(cas6, var = "gender")
+count(cas6, var = "ethnic_code")
+count(cas6, var = "homeowner_code")
+
+hist(cas6$net_purchase_amount)
+hist(log(cas6$net_purchase_amount +1))
+cas6$logamount <- log(cas6$net_purchase_amount +1)
+
+hist(cas6$age_band)
+hist(cas6$est_income_code)
+hist(cas6$length_of_residence)
+
+cor <- cbind(cas6[,c(5,12,13,16)])
+cor <- na.omit(cor)
+cor6 <- cor(cor)
+vif(cor)
+
+sum(is.na(cas6))
+colSums(is.na(cas6))
+
+#replace NA with mean for columns age_band, est_income_code, and length_of_residence
+cas6$age_band[is.na(cas6$age_band)] <- mean(cas6$age_band, na.rm = TRUE)
+cas6$est_income_code[is.na(cas6$est_income_code)] <- mean(cas6$est_income_code, na.rm = TRUE)
+cas6$length_of_residence[is.na(cas6$length_of_residence)] <- mean(cas6$length_of_residence, na.rm = TRUE)
+
+unique(cas6$homeowner_code)
+cas6$homeowner_code <- sub("^$", "N", cas6$homeowner_code)
+
+#Same for the gender
+cas6$gender <- sub("^$", "U", cas6$gender)
+unique(cas6$gender)
+
+unique(cas6$child)
+count(cas6$child)
+cas6$child <- sub("^$", "U", cas6$child)
+
+colSums(is.na(cas6))
+```
+
+```{r}
+
+cas6_1 <- lm(logamount ~ factor(gender) + age_band + est_income_code + factor(ethnic_code) + length_of_residence + factor(child) + factor(homeowner_code) + relevel(month, ref = "JAN") + bops, data = cas6)
+summary(cas6_1)
+AIC(cas6_1) #375588.1
+dwtest(cas6_1) #1.3813
+
+#Add month_index and summary
+cas6_2 <- lm(logamount ~ relevel(factor(gender), ref = "U") + age_band + est_income_code + factor(ethnic_code) + length_of_residence + relevel(factor(child), ref = "U") + relevel(factor(homeowner_code), ref = "O") + relevel(month, ref = "JAN") + bops + month_index + factor(summary), data = cas6)
+summary(cas6_2)
+AIC(cas6_2) #333180.2
+dwtest(cas6_2) #1.5022
+
+#Take out ethnic code
+cas6_3 <- lm(logamount ~ relevel(factor(gender), ref = "U") + age_band + est_income_code + length_of_residence + relevel(factor(child), ref = "U") + relevel(factor(homeowner_code), ref = "O") + relevel(month, ref = "JAN") + bops + month_index + factor(summary), data = cas6)
+summary(cas6_3)
+AIC(cas6_3) #333287.5
+dwtest(cas6_3) #1.5012
+
+#put in ethnic code and take out child
+cas6_4 <- lm(logamount ~ relevel(factor(gender), ref = "U") + age_band + est_income_code + factor(ethnic_code) + length_of_residence + relevel(factor(homeowner_code), ref = "O") + relevel(month, ref = "JAN") + bops + month_index + factor(summary), data = cas6)
+summary(cas6_4)
+AIC(cas6_4) #333213.4
+dwtest(cas6_4) #1.5019
+
+#put in child and take out homeowner
+cas6_5 <- lm(logamount ~ relevel(factor(gender), ref = "U") + age_band + est_income_code + factor(ethnic_code) + length_of_residence + relevel(factor(child), ref = "U") + relevel(month, ref = "JAN") + bops + month_index + factor(summary), data = cas6)
+summary(cas6_5)
+AIC(cas6_5) #333181
+dwtest(cas6_5) #1.5022
+
+#Take out legnth of residence
+
+cas6_6 <- lm(logamount ~ relevel(factor(gender), ref = "U") + age_band + est_income_code + factor(ethnic_code) + relevel(factor(child), ref = "U") + relevel(month, ref = "JAN") + bops + month_index + factor(summary), data = cas6)
+summary(cas6_6)
+AIC(cas6_6) #333179
+dwtest(cas6_6) #1.5022
+
+#Take out ethnic code
+cas6_7 <- lm(logamount ~ relevel(factor(gender), ref = "U") + age_band + est_income_code + relevel(factor(child), ref = "U") + relevel(month, ref = "JAN") + bops + month_index + factor(summary), data = cas6)
+summary(cas6_7)
+AIC(cas6_7) #333287
+dwtest(cas6_5) #1.5022
+
+#Put in ethinic code and take out child
+cas6_8 <- lm(logamount ~ relevel(factor(gender), ref = "U") + age_band + est_income_code + factor(ethnic_code) + relevel(month, ref = "JAN") + bops + month_index + factor(summary), data = cas6)
+summary(cas6_8)
+AIC(cas6_8) #333208.2
+dwtest(cas6_8) #1.5019
+
+#Based on cas6_6 quadratic age_band
+plot(cas6$net_purchase_amount ,cas6$age_band)
+cas6_9 <- lm(logamount ~ relevel(factor(gender), ref = "U") + age_band + I(age_band^2) + est_income_code + factor(ethnic_code) + relevel(factor(child), ref = "U") + relevel(month, ref = "JAN") + bops + month_index + factor(summary), data = cas6)
+summary(cas6_9)
+AIC(cas6_9) #333180.1
+#For store 6, quadratic age_band seems not that significant as store 2
+
+#How about bops and summary
+cas6_10 <- lm(logamount ~ relevel(factor(gender), ref = "U") + age_band + est_income_code + factor(ethnic_code) + relevel(factor(child), ref = "U") + relevel(month, ref = "JAN") + bops*factor(summary) + month_index, data = cas6)
+summary(cas6_10)
+AIC(cas6_10) #332859.3
+dwtest(cas6_10) #this model has autocorrelation
+
+#Bops and month
+cas6_11 <- lm(logamount ~ relevel(factor(gender), ref = "U") + age_band + est_income_code + factor(ethnic_code) + relevel(factor(child), ref = "U") + relevel(month, ref = "JAN")*bops + bops + month_index + factor(summary), data = cas6)
+summary(cas6_11)
+AIC(cas6_11) #329265.3
+dwtest(cas6_11) #this model has autocorrelation
+
+#Although this model has autocorrelation, the results still give me some insight of how bops service worked.
+
+```
+
+cas5998
+```{r}
+
+cas5998$X <- NULL
+
+dim(cas5998)
+count(cas5998, var = "bops")
+count(cas5998, var = "gender") #Most of the gender is na, should consider drop this variable
+count(cas5998, var = "ethnic_code") #Same as gender
+count(cas5998, var = "homeowner_code") #same as gender
+
+#the transactions of store 5998 don't have that much customer attributes as other two stores
+
+hist(cas5998$net_purchase_amount)
+hist(log(cas5998$net_purchase_amount +1))
+cas5998$logamount <- log(cas5998$net_purchase_amount +1)
+
+hist(cas5998$age_band)
+hist(cas5998$est_income_code)
+hist(cas5998$length_of_residence)
+
+cor <- cbind(cas5998[,c(5,12,13,16)])
+cor <- na.omit(cor)
+cor5998 <- cor(cor)
+vif(cor)
+
+sum(is.na(cas5998))
+colSums(is.na(cas5998))
+
+
+unique(cas5998$homeowner_code)
+count(cas5998$homeowner_code)
+cas5998$homeowner_code <- sub("^$", "N", cas5998$homeowner_code)
+
+#Same for the gender
+cas5998$gender <- sub("^$", "U", cas5998$gender)
+unique(cas5998$gender)
+
+unique(cas5998$child)
+count(cas5998$child)
+cas5998$child <- sub("^$", "U", cas5998$child)
+
+colSums(is.na(cas5998))
+
+```
+
+Store 5998 modeling
+Since I don't have customer attirbutes for most of the transaction, I can only run a simple regression model based on few variables
+```{r}
+cas5998_1 <- lm(logamount ~ relevel(month, ref = "JAN") + bops + month_index + factor(summary), data = cas5998)
+summary(cas5998_1)
+AIC(cas5998_1) #156990.4
+dwtest(cas5998_1) #1.6571, autocorrelation
+
+cas5998_2 <- lm(logamount ~ relevel(month, ref = "JAN")*bops + month_index + factor(summary), data = cas5998)
+summary(cas5998_2)
+AIC(cas5998_2) #156196.4
+dwtest(cas5998_2) #1.6571, autocorrelation
+
+cas5998_3 <- lm(logamount ~ relevel(month, ref = "JAN") + bops + month_index + factor(summary)*bops, data = cas5998)
+summary(cas5998_3)
+AIC(cas5998_3) #156039.9
+dwtest(cas5998_3) 
+
+```
+
+#Interpretation
+In general
+store2: cas2_5
+store6: cas6_6
+store5998: cas5998_1
+```{r}
+summary(cas2_5)
+summary(cas6_6)
+summary(cas5998_1)
+
+ca$logamount <- log(ca$net_purchase_amount +1)
+intg <- c(6.252, 5.990, 6.4684)
+
+intgr <- data.frame(intercepts = intg,
+                       slopes = c(2.228e-01, 1.802e-01, -0.1511), store = c("2", "6", "5998"))
+
+casub <- ca[sample(nrow(ca),10000),]
+typeof(casub$logamount)
+
+
+ggplot(data = casub, aes(x = bops, y = logamount, xlevels = 2)) +
+  geom_abline(data = intgr, aes(slope = slopes, intercept = intercepts, colour = store) , size = 1) +
+  geom_point(aes(group = store_number, colour = factor(store_number)), alpha = 0.2) +
+  theme(axis.title.y=element_text(size=rel(1.2),vjust=0.2),
+          axis.title.x=element_text(size=rel(1.2),vjust=0.2),
+          axis.text.x=element_text(size=rel(1.3)),
+          axis.text.y=element_text(size=rel(1.3)),
+          text = element_text(size=13)) +
+  theme(legend.position = "top") +
+  scale_colour_brewer(palette="Set3") 
+
+
+```
+
+Different month has different impact
+store2 <- cas2_7
+store6 <- cas6_11
+store5998 <- cas5998_2
+```{r}
+summary(cas2_7)
+facgender <- as.factor(cas2$gender)
+facchild <- as.factor(cas2$child)
+fachome <- as.factor(cas2$homeowner_code)
+facsummary <- as.factor(cas2$summary)
+age2 <- cas2$age_band^2
+
+cas2$age_band <- as.numeric(cas2$age_band)
+
+cas2_7_e <- lm(formula = cas2$logamount ~ facgender+ age2 + cas2$est_income_code + 
+    cas2$length_of_residence + facchild + cas2$bops * cas2$month + cas2$month_index + 
+    facsummary)
+summary(cas2_7_e)
+
+cas2_7_1 <- lm(logamount ~ relevel(factor(gender), ref = "U") + 
+    age_band + I(age_band^2) + est_income_code + 
+    length_of_residence + factor(child)+ bops * month + month_index + 
+    factor(summary), data = cas2)
+
+summary(cas2_7_1)
+
+interact_plot(cas2_7_1, pred = "bops", modx = "month", color.class = "Set3")
+
+
+
+```
 
 
 
