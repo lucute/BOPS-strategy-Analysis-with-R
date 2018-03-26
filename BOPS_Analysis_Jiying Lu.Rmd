@@ -83,7 +83,7 @@ cas5998 <- ca[ca$store_number == 5998,]
 ```
 
 cas2
-check data
+#check data
 ```{r}
 dim(cas2)
 str(cas2)
@@ -134,7 +134,7 @@ cas2 <- cas2[!is.na(cas2$summary),]
 
 ```
 
-Modeling
+#Modeling
 ```{r}
 cas2_1 <- lm(cas2$logamount ~ factor(cas2$gender) + cas2$age_band + cas2$est_income_code + factor(cas2$ethnic_code) + cas2$length_of_residence + factor(cas2$child) + factor(cas2$homeowner_code) + relevel(cas2$month, ref = "JAN") + cas2$bops)
 summary(cas2_1)
@@ -173,7 +173,7 @@ dwtest(cas2_4) #1.5798
 #For the age band, we have positive sign for estimate, how about quadratic age band?
 plot(cas2$net_purchase_amount ,cas2$age_band)
 
-cas2_5 <- lm(cas2$logamount ~ relevel(factor(cas2$gender), ref = "U") + cas2$age_band + I(cas2$age_band^2) + cas2$est_income_code + cas2$length_of_residence + relevel(factor(cas2$child), ref = "U") + relevel(factor(cas2$homeowner_code), ref = "O" ) + relevel(cas2$month, ref = "JAN") + cas2$bops + cas2$month_index + factor(cas2$summary))
+cas2_5 <- lm(logamount ~ relevel(factor(gender), ref = "U") + age_band + I(age_band^2) + est_income_code + length_of_residence + relevel(factor(child), ref = "U") + relevel(factor(homeowner_code), ref = "O" ) + relevel(month, ref = "JAN") + bops + month_index + factor(summary), data = cas2)
 summary(cas2_5)
 AIC(cas2_5) #4157578
 dwtest(cas2_5) #1.5798
@@ -181,24 +181,24 @@ anova(cas2_4, cas2_5, test = "Chisq") #Model fit improves with the quadratic var
 bptest(cas2_5) 
 
 #BOPS and Summary
-cas2_6 <- lm(cas2$logamount ~ relevel(factor(cas2$gender), ref = "U") + cas2$age_band + I(cas2$age_band^2) + cas2$est_income_code + cas2$length_of_residence + relevel(factor(cas2$child), ref = "U") + relevel(factor(cas2$homeowner_code), ref = "O" ) + relevel(cas2$month, ref = "JAN") + cas2$bops*factor(cas2$summary) + cas2$month_index + factor(cas2$summary))
+cas2_6 <- lm(logamount ~ relevel(factor(gender), ref = "U") + age_band + I(age_band^2) + est_income_code + length_of_residence + relevel(factor(child), ref = "U") + relevel(factor(homeowner_code), ref = "O" ) + relevel(month, ref = "JAN") + bops*factor(summary) + month_index + factor(summary), data = cas2)
 summary(cas2_6)
 AIC(cas2_6) #4163559 #Interaction terms doesn't seem to improve the model fit
 dwtest(cas2_6) #1.5798
 
-cas2_7 <- lm(cas2$logamount ~ relevel(factor(cas2$gender), ref = "U") + cas2$age_band + I(cas2$age_band^2) + cas2$est_income_code + cas2$length_of_residence + relevel(factor(cas2$child), ref = "U") + relevel(factor(cas2$homeowner_code), ref = "O" ) + relevel(cas2$month, ref = "JAN") + cas2$bops*cas2$month + cas2$month_index + factor(cas2$summary))
+cas2_7 <- lm(logamount ~ relevel(factor(gender), ref = "U") + age_band + I(age_band^2) + est_income_code + length_of_residence + relevel(factor(child), ref = "U") + relevel(factor(homeowner_code), ref = "O" ) + bops*month + month_index + factor(summary), data = cas2)
 summary(cas2_7)
 AIC(cas2_7) #4126231
 dwtest(cas2_7) #1.6125
 anova(cas2_5, cas2_7, test = "Chisq") #Model fit improves with the interaction variable
 bptest(cas2_7) #This model is heteroschedasticity
 
-
 ```
 
 
+
 cas6
-check data
+#check data
 ```{r}
 cas6$X <- NULL
 
@@ -243,6 +243,7 @@ cas6$child <- sub("^$", "U", cas6$child)
 
 colSums(is.na(cas6))
 ```
+
 
 ```{r}
 
@@ -423,33 +424,81 @@ store6 <- cas6_11
 store5998 <- cas5998_2
 ```{r}
 summary(cas2_7)
-facgender <- as.factor(cas2$gender)
-facchild <- as.factor(cas2$child)
-fachome <- as.factor(cas2$homeowner_code)
-facsummary <- as.factor(cas2$summary)
-age2 <- cas2$age_band^2
 
-cas2$age_band <- as.numeric(cas2$age_band)
-
-cas2_7_e <- lm(formula = cas2$logamount ~ facgender+ age2 + cas2$est_income_code + 
-    cas2$length_of_residence + facchild + cas2$bops * cas2$month + cas2$month_index + 
-    facsummary)
-summary(cas2_7_e)
-
-cas2_7_1 <- lm(logamount ~ relevel(factor(gender), ref = "U") + 
-    age_band + I(age_band^2) + est_income_code + 
-    length_of_residence + factor(child)+ bops * month + month_index + 
-    factor(summary), data = cas2)
-
-summary(cas2_7_1)
 
 interact_plot(cas2_7_1, pred = "bops", modx = "month", color.class = "Set3")
 
+cas2_7_1 <- lm(logamount ~ factor(gender) + 
+    age_band + I(age_band^2) + est_income_code + length_of_residence + 
+   factor(child)+ factor(homeowner_code)+ bops*month + month_index + factor(summary), 
+    data = cas2)
 
+cas2$factorgender <- as.factor(cas2$gender)
+cas2$factorchild <- as.factor(cas2$child)
+cas2$factorhome <- as.factor(cas2$homeowner_code)
+cas2$factorsummary <- as.factor(cas2$summary)
+
+cas2_7_f <- lm(logamount ~ factorgender + 
+    age_band + I(age_band^2) + est_income_code + length_of_residence + 
+   factorchild+ factorhome + bops*month + month_index + factorsummary, 
+    data = cas2)
+
+plot(effect(term="bops:month", mod=cas2_7_f,xlevels=2),multiline=TRUE)
+
+#Store6
+summary(cas6_11)
+
+cas6$factorgender <- as.factor(cas6$gender)
+cas6$factorchild <- as.factor(cas6$child)
+cas6$factorhome <- as.factor(cas6$homeowner_code)
+cas6$factorsummary <- as.factor(cas6$summary)
+cas6$factorethnic <- as.factor(cas6$est_income_code)
+
+cas6_11_f <- lm(logamount ~ factorgender + 
+    age_band + est_income_code + factorethnic + factorchild + bops*month + 
+    month_index + factorsummary, data = cas6)
+
+plot(effect(term="bops:month", mod=cas6_11_f,xlevels=2),multiline=TRUE)
+
+#Store5998
+summary(cas5998_2)
+cas5998$factorsummary <- as.factor(cas5998$summary)
+
+cas5998_2_f <- lm(formula = logamount ~ bops*month + 
+    month_index + factorsummary, data = cas5998)
+
+plot(effect(term="bops:month", mod=cas5998_2_f,xlevels=2),multiline=TRUE)
 
 ```
 
+#From summary perspective
+store2 <-cas2_6
+store6 <-cas6_10
+store5998 <-cas5998_3
+```{r}
+summary(cas2_6)
 
+cas2_6f <- lm(logamount ~ factorgender + 
+    age_band + I(age_band^2) + est_income_code + length_of_residence + 
+    factorchild + factorhome + bops * factorsummary + 
+    month_index, data = cas2)
+
+plot(effect(term="bops:factorsummary", mod=cas2_6f,xlevels=2),multiline=TRUE)
+
+summary(cas6_10)
+
+cas6_10f <- lm(logamount ~ factorgender + age_band + est_income_code + factorethnic + factorchild + bops * factorsummary + 
+    month_index, data = cas6)
+
+plot(effect(term="bops:factorsummary", mod=cas6_10f,xlevels=2),multiline=TRUE)
+
+summary(cas5998_3)
+cas5998_3f <- lm(formula = logamount ~ month + bops + 
+    month_index + factorsummary*bops, data = cas5998)
+
+plot(effect(term="bops:factorsummary", mod=cas5998_3f,xlevels=2),multiline=TRUE)
+
+```
 
 
 
