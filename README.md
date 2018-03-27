@@ -27,8 +27,8 @@ The data is from a retailer which has both online and brick and motar stores, th
     - Only look at the transaction after implementing bops, and "using bops" is the key independent variables.
  
 - **Findings and Suggestion**:
-  - **In general**
-  ![alt text](BOPS-strategy-Analysis-with-R/general_intepretation_whole.png)
+  - **In general**<br>
+  ![alt text](https://github.com/lucute/BOPS-strategy-Analysis-with-R/blob/master/general_intepretation_whole.png)
     - The transaction with bops in general spend more net_purchase_amount in store 2 than other 2 stores.
     - Store 2 and store 6 have positive coefficients on implementing bops variable, however, store 5998 has negative sign.
   - **Store2**
