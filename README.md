@@ -31,16 +31,24 @@ The data is from a retailer which has both online and brick and motar stores, th
   ![alt text](https://github.com/lucute/BOPS-strategy-Analysis-with-R/blob/master/general_intepretation_whole.png)
     - The transaction with bops in general spend more net_purchase_amount in store 2 than other 2 stores.
     - Store 2 and store 6 have positive coefficients on implementing bops variable, however, store 5998 has negative sign.
-  - **Store2**
-    - Interaction term of bops and month captures the differences impact of bops on different month. From the result, bops has positive impact in the months except APR and JAN. Further more, in AUG and SEP, BOPS service had significant positive impact on purchase amount per transaction.
+  - **Store2** <br>
+  ![alt text](https://github.com/lucute/BOPS-strategy-Analysis-with-R/blob/master/store2_bopsmonth_whole.png)
+    - Interaction term of bops and month captures the differences impact of bops on different month. From the result, bops has positive impact in the months except APR and JAN. Further more, in AUG and SEP, BOPS service had significant positive impact on purchase amount per transaction.<br>
+    ![alt text](https://github.com/lucute/BOPS-strategy-Analysis-with-R/blob/master/store2_bopssummary_whole.png)
     - Interaction term of bops and summary indicates that for summary 3 and 10, the gap between adopting bops and before is worth noting.
     - Adopting BOPS increase the probabilty for return
-  - **Store6**
+  - **Store6** <br>
+  ![alt text](https://github.com/lucute/BOPS-strategy-Analysis-with-R/blob/master/store6_bopsmonth_whole.png)
     - Similarily to store2, bops has positive impact in the months except APR and JAN. Further more, in AUG and SEP, BOPS service had significant positive impact on purchase amount per transaction. But the trend for store 6 seems more dramatically changes over month.
+  ![alt text](https://github.com/lucute/BOPS-strategy-Analysis-with-R/blob/master/store6_bopssummary_whole.png)
     - Different from store 2, for store 6, summary 8 is worth noting.
     - Adopting BOPS doesn't play a big role on whether customers returned products or not.
      
   - **Store5998**
     - From the result of analysis, store 5998 is different from other two stores, this store implemented bops latest and doesn't have much information about their customers. Also, the bops service in general has negative impact on sales amount.
+  
+  -**Suggestion**:
+    - Different stores have different attractive degree of BOPS on customers. Although the business can adopt bops service for every online channel, from the marketing perspective, I suggest to allocate more portion of budget on store 2.
+    - Although the BOPS service increases the amount of purchase on store 2 and store 6, for store 2, it also increases the probability of returning. The next step after implementing BOPS should be focusing on how to minimize the gap between photos on website and real pruducts.
  
   
